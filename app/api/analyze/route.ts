@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzePlan } from "@/lib/groq";
+import { analyzeWithGemini, isGeminiEnabled } from "@/lib/gemini";
 import { calculateClarityScore } from "@/lib/clarityScore";
 import { saveAnalysis } from "@/lib/firebase";
 import { AnalysisResult, QualityIndicators } from "@/types";
@@ -7,7 +8,7 @@ import { AnalysisResult, QualityIndicators } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { input } = body;
+    const { input, useGroq } = body; // useGroq boolean to toggle between AI providers
 
     if (!input || typeof input !== "string" || input.trim().length === 0) {
       return NextResponse.json(
@@ -23,49 +24,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Analyze the plan using Groq AI with enhanced strict prompt
-    const aiResponse = await analyzePlan(input);
+    // Choose AI provider based on useGroq flag (default to Groq for backward compatibility)
+    const shouldUseGroq = useGroq !== false; // Default true if not specified
+    
+    let aiResponse;
+    if (shouldUseGroq) {
+      // Analyze with Groq AI
+      aiResponse = await analyzePlan(input);
+      console.log("Using Groq AI for analysis");
+    } else {
+      // Analyze with Gemini AI
+      if (!isGeminiEnabled()) {
+        return NextResponse.json(
+          { error: "Gemini API key not configured. Please add GEMINI_API_KEY to your .env.local file." },
+          { status: 503 }
+        );
+      }
+      aiResponse = await analyzeWithGemini(input);
+      console.log("Using Gemini AI for analysis");
+    }
 
-    // STRICT SCORE CALCULATION - Must follow exact deduction rules from prompt
-    // Based on missingElements boolean flags (true = missing, false = present)
-    const goalPoints = !aiResponse.missingElements.goalClarity ? 30 : 0;
-    const stepsPoints = !aiResponse.missingElements.executionSteps ? 30 : 0;
-    const timelinePoints = !aiResponse.missingElements.timeline ? 25 : 0;
-    const resourcesPoints = !aiResponse.missingElements.resources ? 15 : 0;
-    
-    let calculatedTotal = goalPoints + stepsPoints + timelinePoints + resourcesPoints;
-    
-    // ENFORCE STRICT RULES FROM PROMPT:
-    // Rule 1: If input is "vague", score MUST be 0-20
-    if (aiResponse.inputQuality === "vague") {
-      calculatedTotal = Math.min(calculatedTotal, 20);
-    }
-    
-    // Rule 2: If ALL elements are missing, score MUST be 0-20
-    const allMissing = Object.values(aiResponse.missingElements).every(v => v === true);
-    if (allMissing) {
-      calculatedTotal = Math.min(calculatedTotal, 20);
-    }
-    
-    // Rule 3: Ensure score is within valid range
-    calculatedTotal = Math.max(0, Math.min(100, calculatedTotal));
-    
-    // Create score breakdown matching the 4 dimensions
+    // Use EXACT clarity score from AI - NO FALLBACKS OR OVERRIDES
+    // The AI calculates score based on strict deduction rules in the prompt
     const scoreBreakdown = {
-      goalDefinition: goalPoints,
-      executionSteps: stepsPoints,
+      goalDefinition: !aiResponse.missingElements.goalClarity ? 30 : 0,
+      executionSteps: !aiResponse.missingElements.executionSteps ? 30 : 0,
       methodClarity: 0, // Not tracked in missingElements
-      timeline: timelinePoints,
-      resources: resourcesPoints,
-      total: calculatedTotal,
+      timeline: !aiResponse.missingElements.timeline ? 25 : 0,
+      resources: !aiResponse.missingElements.resources ? 15 : 0,
+      total: aiResponse.clarityScore, // EXACT AI score - trust AI calculation
     };
 
     // Log for debugging
     console.log("Score calculation:", {
       inputQuality: aiResponse.inputQuality,
       missingElements: aiResponse.missingElements,
-      calculatedTotal,
-      allMissing,
+      aiProvidedScore: aiResponse.clarityScore,
+      breakdownTotal: scoreBreakdown.total,
+      allMissing: Object.values(aiResponse.missingElements).every(v => v === true),
     });
 
     // Create analysis result
@@ -86,7 +82,7 @@ export async function POST(request: NextRequest) {
       ...analysisResult,
       id,
       scoreBreakdown,
-      qualityIndicators: aiResponse.qualityIndicators,
+      qualityIndicators: (aiResponse as any).qualityIndicators, // Only Groq returns this
       inputQuality: aiResponse.inputQuality,
     });
   } catch (error) {
