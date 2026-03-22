@@ -7,6 +7,7 @@ import { ClarityScore } from "@/components/ClarityScore";
 import { MissingElements } from "@/components/MissingElements";
 import { ActionableSteps } from "@/components/ActionableSteps";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { AIProviderToggle } from "@/components/AIProviderToggle";
 import { Button } from "@/components/ui/button";
 import { AnalysisResult as AnalysisResultType, ClarityScoreBreakdown, QualityIndicators } from "@/types";
 import { Brain, RotateCcw, Sparkles } from "lucide-react";
@@ -20,6 +21,7 @@ export default function Home() {
   const [currentAnalysis, setCurrentAnalysis] = useState<ApiResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useGroq, setUseGroq] = useState(true); // Default to Groq
 
   const handleAnalyze = async (input: string) => {
     setIsLoading(true);
@@ -35,7 +37,10 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ 
+          input,
+          useGroq: useGroq // Send toggle state to API
+        }),
         signal: controller.signal,
       });
 
@@ -119,6 +124,12 @@ export default function Home() {
                 </p>
               </div>
             )}
+
+            {/* AI Provider Toggle */}
+            <AIProviderToggle 
+              useGroq={useGroq} 
+              onToggle={setUseGroq} 
+            />
 
             <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
 
