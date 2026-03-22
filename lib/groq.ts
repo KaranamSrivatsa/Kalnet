@@ -44,14 +44,13 @@ function validateAndSanitizeResponse(raw: RawAIResponse): AIAnalysisResponse {
     (!missingElements.resources ? 15 : 0)
   );
   
-  // Get AI's provided score
+  // Get AI's provided score for reference
   const aiScore = typeof raw.clarityScore === 'number' ? raw.clarityScore : expectedScore;
-  
-  // Use AI score if it matches expected calculation, otherwise use calculated
-  const finalScore = Math.abs(aiScore - expectedScore) <= 5 
-    ? aiScore  // AI score is close enough, use it
-    : expectedScore; // Use strict calculation
-  
+
+  // ALWAYS use strict calculation based on missingElements - NO EXCEPTIONS
+  // This ensures the displayed score matches the breakdown components
+  const finalScore = expectedScore;
+
   return {
     structuredOutput: {
       goal: structured.goal?.trim() || "Goal not clearly defined - consider specifying what success looks like with measurable outcomes",

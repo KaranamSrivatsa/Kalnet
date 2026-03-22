@@ -55,10 +55,22 @@ Evaluate ONLY based on USER INPUT:
    - 3 or more explicit steps are written by user
 
 3. resources = true ONLY if:
-   - user explicitly mentions money, tools, skills, or assets
+   - user explicitly mentions money (e.g., "$500", "$1000 budget")
+   - OR tools (e.g., "laptop", "gym membership", "camera")
+   - OR skills (e.g., "I have certification", "5 years experience")
+   - OR assets (e.g., "my car", "home office", "existing website")
+   
+CRITICAL: Physical objects, money, skills, or memberships = resources PRESENT
+Example: "using my gym membership" → resources = false (user PROVIDED resources)
+Example: "with $500 for courses" → resources = false (user PROVIDED resources)
 
 4. timeline = true ONLY if:
-   - user mentions duration, deadline, or milestones
+   - user mentions duration (e.g., "in 90 days", "for 3 months", "within 6 weeks")
+   - OR deadline (e.g., "by December", "by end of year", "before summer")
+   - OR milestones (e.g., "week 1-4", "phase 1", "first month")
+   
+CRITICAL: "in X days/weeks/months" means timeline is PRESENT (set timeline = false)
+Example: "lose 20 pounds in 90 days" → timeline = false (user PROVIDED timeline)
 
 IMPORTANT:
 If input is "vague", ALL must be false.
