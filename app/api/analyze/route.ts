@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzePlan } from "@/lib/groq";
-import { analyzeWithGemini, isGeminiEnabled } from "@/lib/gemini";
 import { calculateClarityScore } from "@/lib/clarityScore";
 import { saveAnalysis } from "@/lib/firebase";
 import { AnalysisResult, QualityIndicators } from "@/types";
@@ -8,7 +7,7 @@ import { AnalysisResult, QualityIndicators } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { input, useGroq } = body; // useGroq boolean to toggle between AI providers
+    const { input } = body;
 
     if (!input || typeof input !== "string" || input.trim().length === 0) {
       return NextResponse.json(
@@ -24,25 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Choose AI provider based on useGroq flag (default to Groq for backward compatibility)
-    const shouldUseGroq = useGroq !== false; // Default true if not specified
-    
-    let aiResponse;
-    if (shouldUseGroq) {
-      // Analyze with Groq AI
-      aiResponse = await analyzePlan(input);
-      console.log("Using Groq AI for analysis");
-    } else {
-      // Analyze with Gemini AI
-      if (!isGeminiEnabled()) {
-        return NextResponse.json(
-          { error: "Gemini API key not configured. Please add GEMINI_API_KEY to your .env.local file." },
-          { status: 503 }
-        );
-      }
-      aiResponse = await analyzeWithGemini(input);
-      console.log("Using Gemini AI for analysis");
-    }
+    // Always use Groq AI for analysis
+    const aiResponse = await analyzePlan(input);
+    console.log("Using Groq AI for analysis");
 
     // Use EXACT clarity score from AI - NO FALLBACKS OR OVERRIDES
     // The AI calculates score based on strict deduction rules in the prompt
